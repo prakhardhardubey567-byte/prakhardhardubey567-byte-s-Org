@@ -13,6 +13,7 @@ import { UsbConnectModal } from './components/UsbConnectModal';
 import { ThresholdWarningBanner } from './components/ThresholdWarningBanner';
 import { ThresholdConfigModal } from './components/ThresholdConfigModal';
 import { MissionChecklistSidebar } from './components/MissionChecklistSidebar';
+import { PreFlightDiagnosticsModal } from './components/PreFlightDiagnosticsModal';
 import { thresholdService } from './services/thresholdService';
 import { ThresholdRule, AlertSeverity, AlarmIncident } from './types/thresholds';
 import { 
@@ -47,6 +48,8 @@ export default function App() {
   const [showUsbModal, setShowUsbModal] = useState<boolean>(false);
   const [showThresholdModal, setShowThresholdModal] = useState<boolean>(false);
   const [showChecklistSidebar, setShowChecklistSidebar] = useState<boolean>(false);
+  const [showPreflightDiagnostics, setShowPreflightDiagnostics] = useState<boolean>(true);
+  const [hasCompletedPreflight, setHasCompletedPreflight] = useState<boolean>(false);
   const [thresholdRules, setThresholdRules] = useState<ThresholdRule[]>([]);
   const [maxSeverity, setMaxSeverity] = useState<AlertSeverity>('NOMINAL');
   const [alarmIncidents, setAlarmIncidents] = useState<AlarmIncident[]>([]);
@@ -251,6 +254,17 @@ export default function App() {
           </button>
 
           <button
+            onClick={() => setShowPreflightDiagnostics(true)}
+            className={`transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
+              hasCompletedPreflight ? 'text-emerald-400 hover:text-emerald-300 font-semibold' : 'text-amber-400 hover:text-amber-300 font-semibold animate-pulse'
+            }`}
+            title="Avionics Power-On Self-Test (POST) Sensor Diagnostics"
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+            <span>{hasCompletedPreflight ? 'POST: Good To Go' : 'POST: Checking...'}</span>
+          </button>
+
+          <button
             onClick={() => setShowChecklistSidebar(true)}
             className="hover:text-cyan-400 text-slate-400 transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5"
             title="Open Pre-Flight Mission Checklist"
@@ -439,6 +453,22 @@ export default function App() {
               </span>
             </button>
 
+            {/* Pre-Flight Sensor Diagnostics / POST Button */}
+            <button
+              onClick={() => setShowPreflightDiagnostics(true)}
+              className={`px-2.5 py-1.5 rounded border flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs ${
+                hasCompletedPreflight
+                  ? 'border-emerald-700/80 bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-300'
+                  : 'border-amber-700/80 bg-amber-950/60 hover:bg-amber-900/80 text-amber-300 animate-pulse'
+              }`}
+              title="Trigger Pre-Flight Sensor Self-Check (Power-On Self-Test)"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="text-[11px] font-bold">
+                {hasCompletedPreflight ? 'SENSORS: GOOD TO GO' : 'RUN SENSOR POST'}
+              </span>
+            </button>
+
             {/* Mission Pre-Flight Checklist Panel Trigger */}
             <button
               onClick={() => setShowChecklistSidebar(true)}
@@ -497,52 +527,88 @@ export default function App() {
           </div>
         </div>
 
-        {/* Tab Viewport Routing */}
-        {activeTab === 'live' && (
-          <LiveValuesView
-            packet={currentPacket}
-            history={history}
-            hzRate={hzRate}
-            rules={thresholdRules}
-          />
-        )}
+        {/* Tab Viewport Routing - Gated behind Pre-Flight Sensor Diagnostics */}
+        {!hasCompletedPreflight ? (
+          <div className="flex flex-col items-center justify-center py-16 px-4 text-center my-6 rounded-xl border border-dashed border-cyan-800/50 bg-[#070c18]/80 backdrop-blur-sm relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/5 rounded-full blur-3xl pointer-events-none" />
+            <div className="w-16 h-16 rounded-2xl bg-cyan-950/90 border-2 border-cyan-500/60 flex items-center justify-center text-cyan-400 mb-4 animate-pulse shadow-xl shadow-cyan-950/60">
+              <ShieldCheck className="w-8 h-8" />
+            </div>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded bg-cyan-950/90 border border-cyan-800 text-cyan-300 font-mono text-xs mb-3">
+              <Activity className="w-3.5 h-3.5 animate-spin" />
+              <span>AVIONICS SENSOR DIAGNOSTIC GATE ACTIVE</span>
+            </div>
+            <h2 className="text-xl font-mono font-bold text-slate-100 max-w-lg mb-2">
+              Pre-Flight Sensor Interrogation Required
+            </h2>
+            <p className="text-xs font-mono text-slate-400 max-w-lg mb-6 leading-relaxed">
+              Before displaying live mission telemetry, Orbitra ’26 checks every flight sensor (ESP32, BMP280, MPU6050, DHT11, NEO-6M, LiPo Rail, Servo, Radio Link) and verifies calibration tolerances.
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <button
+                onClick={() => setShowPreflightDiagnostics(true)}
+                className="px-5 py-2.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-mono font-bold text-xs flex items-center gap-2 shadow-lg shadow-cyan-900/50 cursor-pointer transition-all hover:scale-105"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span>Launch Sensor Self-Test (POST)</span>
+              </button>
+              <button
+                onClick={() => setHasCompletedPreflight(true)}
+                className="px-4 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-xs flex items-center gap-2 cursor-pointer transition-colors"
+              >
+                <span>Bypass & Show Telemetry</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {activeTab === 'live' && (
+              <LiveValuesView
+                packet={currentPacket}
+                history={history}
+                hzRate={hzRate}
+                rules={thresholdRules}
+              />
+            )}
 
-        {activeTab === 'plots' && (
-          <TimeSeriesView
-            history={history}
-            isPaused={isPaused}
-            onTogglePause={() => setIsPaused((p) => !p)}
-            onClearHistory={() => setHistory([])}
-          />
-        )}
+            {activeTab === 'plots' && (
+              <TimeSeriesView
+                history={history}
+                isPaused={isPaused}
+                onTogglePause={() => setIsPaused((p) => !p)}
+                onClearHistory={() => setHistory([])}
+              />
+            )}
 
-        {activeTab === 'openmct' && (
-          <OpenMctView
-            packet={currentPacket}
-            history={history}
-            hzRate={hzRate}
-          />
-        )}
+            {activeTab === 'openmct' && (
+              <OpenMctView
+                packet={currentPacket}
+                history={history}
+                hzRate={hzRate}
+              />
+            )}
 
-        {activeTab === 'sensors' && (
-          <SensorShowcaseView />
-        )}
+            {activeTab === 'sensors' && (
+              <SensorShowcaseView />
+            )}
 
-        {activeTab === 'pipeline' && (
-          <HardwarePipelineView
-            onTriggerLaunch={() => simulationService.triggerLaunch()}
-            onTriggerParachute={() => simulationService.triggerParachute()}
-            onResetSimulation={() => simulationService.reset()}
-            isSimulating={isSimulating}
-          />
-        )}
+            {activeTab === 'pipeline' && (
+              <HardwarePipelineView
+                onTriggerLaunch={() => simulationService.triggerLaunch()}
+                onTriggerParachute={() => simulationService.triggerParachute()}
+                onResetSimulation={() => simulationService.reset()}
+                isSimulating={isSimulating}
+              />
+            )}
 
-        {activeTab === 'usb' && (
-          <UsbCommandDeck
-            onSimulateLaunch={() => simulationService.triggerLaunch()}
-            onSimulateParachute={() => simulationService.triggerParachute()}
-            isSimulating={isSimulating}
-          />
+            {activeTab === 'usb' && (
+              <UsbCommandDeck
+                onSimulateLaunch={() => simulationService.triggerLaunch()}
+                onSimulateParachute={() => simulationService.triggerParachute()}
+                isSimulating={isSimulating}
+              />
+            )}
+          </>
         )}
       </main>
 
@@ -578,6 +644,19 @@ export default function App() {
         }}
       />
 
+      {/* Avionics Power-On Self-Test (POST) Sensor Diagnostics Modal */}
+      <PreFlightDiagnosticsModal
+        isOpen={showPreflightDiagnostics}
+        onComplete={() => {
+          setHasCompletedPreflight(true);
+          setShowPreflightDiagnostics(false);
+        }}
+        onDismiss={() => {
+          setHasCompletedPreflight(true);
+          setShowPreflightDiagnostics(false);
+        }}
+      />
+
       {/* Quiet Footer */}
       <footer className="border-t border-slate-900 px-6 py-4 mt-8 bg-slate-950/80 text-xs font-mono text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-3">
         <div className="flex items-center gap-2">
@@ -590,7 +669,11 @@ export default function App() {
         <div className="flex items-center gap-3">
           <span>STREAM: {serialStatus.connected ? 'USB HARDWARE' : 'FLIGHT SIMULATOR'}</span>
           <span>·</span>
-          <span className="text-cyan-400">TELEMETRY NOMINAL</span>
+          <span className={hasCompletedPreflight ? 'text-emerald-400 font-semibold' : 'text-amber-400 font-semibold'}>
+            {hasCompletedPreflight ? 'POST: ALL SENSORS NOMINAL (GOOD TO GO)' : 'POST: DIAGNOSTICS PENDING'}
+          </span>
+          <span>·</span>
+          <span className="text-cyan-400">TELEMETRY LINK ACTIVE</span>
         </div>
       </footer>
     </div>
